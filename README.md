@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![ApiVault Web](https://img.shields.io/badge/ApiVault-Web%20App-6366f1.svg)](https://apivault.tech)
-[![CLI Version](https://img.shields.io/badge/CLI-v1.7.0-10b981.svg)](https://github.com/TLB-STATION/apivault)
+[![CLI Version](https://img.shields.io/badge/CLI-v1.7.1-10b981.svg)](https://github.com/TLB-STATION/apivault)
 [![MCP Protocol](https://img.shields.io/badge/MCP-OAuth%202.1-8b5cf6.svg)](https://modelcontextprotocol.io)
 
 Official AI agent skill for **[ApiVault](https://apivault.tech)** — the secure, zero-knowledge API key management vault.
