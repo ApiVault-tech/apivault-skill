@@ -264,7 +264,7 @@ apivault env restore [-C <project-dir>]
 apivault logs                                # recent entries for the active project
 apivault logs [-n <limit>] [--page <n>]
 apivault logs --status <success|error|CODE>  # repeatable; CODE e.g. 200, 404
-apivault logs --source <cli|mcp|web|api> --method <GET|POST|PUT|DELETE>
+apivault logs --source <cli|mcp|web|api|service|integration> --method <GET|POST|PUT|PATCH|DELETE>
 apivault logs --event-type <KEY_REVEALED|KEY_ROTATED|...> --user <userId> --key <idOrName>
 apivault logs --date <YYYY-MM-DD> [--end-date <YYYY-MM-DD>]
 apivault logs --search <query>               # log id, endpoint, method, source, IP, event, actor
