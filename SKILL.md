@@ -22,7 +22,7 @@ ApiVault is a secure API key vault with two integration surfaces:
 
 Production endpoint: `https://apivault.tech`
 
-Website: [apivault.tech](https://apivault.tech) · CLI Repo: [github.com/TLB-STATION/apivault](https://github.com/TLB-STATION/apivault)
+Website: [apivault.tech](https://apivault.tech) · CLI Repo: [github.com/ApiVault-tech/apivault](https://github.com/ApiVault-tech/apivault)
 
 Both surfaces communicate with ApiVault exclusively over HTTPS. Never import ApiVault server code, touch Prisma, or access the database directly.
 
@@ -160,10 +160,10 @@ apivault --version
 - macOS / Linux: `curl -fsSL https://apivault.tech/install.sh | sh`
 - Windows (PowerShell): `irm https://apivault.tech/install.ps1 | iex`
 
-**From source:** [github.com/TLB-STATION/apivault](https://github.com/TLB-STATION/apivault)
+**From source:** [github.com/ApiVault-tech/apivault](https://github.com/ApiVault-tech/apivault)
 
 ```bash
-git clone https://github.com/TLB-STATION/apivault.git
+git clone https://github.com/ApiVault-tech/apivault.git
 cd apivault
 npm install && npm run build
 npm install -g .

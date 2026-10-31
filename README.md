@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![ApiVault Web](https://img.shields.io/badge/ApiVault-Web%20App-6366f1.svg)](https://apivault.tech)
-[![CLI Version](https://img.shields.io/badge/CLI-v1.7.2-10b981.svg)](https://github.com/TLB-STATION/apivault)
+[![CLI Version](https://img.shields.io/badge/CLI-v1.7.2-10b981.svg)](https://github.com/ApiVault-tech/apivault)
 [![MCP Protocol](https://img.shields.io/badge/MCP-OAuth%202.1-8b5cf6.svg)](https://modelcontextprotocol.io)
 
 Official AI agent skill for **[ApiVault](https://apivault.tech)** — the secure, zero-knowledge API key management vault.
@@ -53,7 +53,7 @@ Clone the skill into your project's agent skills directory to give any workspace
 
 ```bash
 mkdir -p .agents/skills/apivault
-git clone https://github.com/TLB-STATION/apivault-skill.git .agents/skills/apivault
+git clone https://github.com/ApiVault-tech/apivault-skill.git .agents/skills/apivault
 ```
 
 ---
@@ -65,11 +65,11 @@ Install into your preferred global agent configuration directory:
 ```bash
 # Claude Code
 mkdir -p ~/.claude/skills
-git clone https://github.com/TLB-STATION/apivault-skill.git ~/.claude/skills/apivault
+git clone https://github.com/ApiVault-tech/apivault-skill.git ~/.claude/skills/apivault
 
 # Antigravity / Gemini CLI
 mkdir -p ~/.gemini/config/skills
-git clone https://github.com/TLB-STATION/apivault-skill.git ~/.gemini/config/skills/apivault
+git clone https://github.com/ApiVault-tech/apivault-skill.git ~/.gemini/config/skills/apivault
 ```
 
 ---
@@ -79,7 +79,7 @@ git clone https://github.com/TLB-STATION/apivault-skill.git ~/.gemini/config/ski
 You can ask any AI assistant to install and use this skill by pasting:
 
 ```text
-Please install the ApiVault skill for this workspace by cloning https://github.com/TLB-STATION/apivault-skill.git into .agents/skills/apivault. Read .agents/skills/apivault/SKILL.md to learn how to manage ApiVault keys and connect to the MCP server.
+Please install the ApiVault skill for this workspace by cloning https://github.com/ApiVault-tech/apivault-skill.git into .agents/skills/apivault. Read .agents/skills/apivault/SKILL.md to learn how to manage ApiVault keys and connect to the MCP server.
 ```
 
 ---
@@ -135,8 +135,8 @@ apivault-skill/
 
 - **Web App**: [https://apivault.tech](https://apivault.tech)
 - **Documentation**: [https://apivault.tech/docs](https://apivault.tech/docs)
-- **CLI Repository**: [github.com/TLB-STATION/apivault](https://github.com/TLB-STATION/apivault)
-- **Issues & Feedback**: [github.com/TLB-STATION/apivault/issues](https://github.com/TLB-STATION/apivault/issues)
+- **CLI Repository**: [github.com/ApiVault-tech/apivault](https://github.com/ApiVault-tech/apivault)
+- **Issues & Feedback**: [github.com/ApiVault-tech/apivault/issues](https://github.com/ApiVault-tech/apivault/issues)
 
 ---
 
