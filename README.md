@@ -5,7 +5,7 @@
 [![CLI Version](https://img.shields.io/badge/CLI-v1.7.3-10b981.svg)](https://github.com/ApiVault-tech/apivault)
 [![MCP Protocol](https://img.shields.io/badge/MCP-OAuth%202.1-8b5cf6.svg)](https://modelcontextprotocol.io)
 
-Official AI agent skill for **[ApiVault](https://apivault.tech)** — the secure, zero-knowledge API key management vault.
+Official AI agent skill for **[ApiVault](https://apivault.tech)** — the encrypted API key management vault.
 
 This skill equips AI coding assistants, IDE extensions, and autonomous agents with complete knowledge and workflows for:
 1. **Remote Model Context Protocol (MCP) Server** — Scoped, revocable OAuth 2.1 integration to query, manage, and reveal API keys securely.
@@ -126,7 +126,7 @@ apivault-skill/
 - **Machines Are Not People**: A service token (`av_live_...`) belongs to a project, not a user. It can reach keys and nothing else — never project administration, the audit log, or another project — and it cannot mint further credentials.
 - **No Secret Leakage**: Raw secret values decrypted via `reveal_key` or `apivault keys get --reveal` must never be echoed into chat logs, commits, or issue trackers.
 - **Process Memory Isolation**: `apivault run` injects decrypted environment variables directly into process memory and temporarily moves `.env` files aside (`*.apivault-run-hidden`).
-- **Custom Vault Key**: In custom encryption mode, the `vault_key` is zero-knowledge and never stored by ApiVault.
+- **Custom Vault Key**: In custom encryption mode, the `vault_key` is sent with each request that needs it. ApiVault does not store it and keeps only a hash to verify it.
 - **Everything Is Audited**: Refused and failed requests are logged next to successful ones — a wrong vault key, a throttled reveal, or a write blocked by a read-only role appears on the project's Logs page with its status, error code and the agent's reported client name. Assume every attempt is visible to the project.
 
 ---
