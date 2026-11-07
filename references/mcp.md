@@ -149,6 +149,7 @@ Returns confirmation object.
 | `VAULT_KEY_REQUIRED` | Custom encryption; `vault_key` must be provided |
 | `INVALID_VAULT_KEY` | Provided vault key is incorrect |
 | `VAULT_KEY_RATE_LIMITED` | Too many incorrect vault keys — 10 per 15 minutes, per user and source address (HTTP 429 with `Retry-After`) |
+| `RATE_LIMITED` | More than 600 key requests in a minute; shared with the user's web and CLI use (HTTP 429 with `Retry-After`) |
 | `VALIDATION` | Required fields missing or invalid |
 | `DECRYPT_FAILED` | Secret decryption failed |
 | `INTERNAL` | Unexpected server error |

@@ -79,15 +79,18 @@ Change and rebuild for local or self-hosted development. Not user-configurable a
 | Whoami | GET | `/api/cli/me` | Return authenticated user metadata |
 | List projects | GET | `/api/projects` | List available user workspaces |
 | List keys | GET | `/api/keys` | List keys with masked preview |
+| Page keys | GET | `/api/keys?limit=<1-500>&cursor=<id>` | One page of keys; the next cursor is in the `X-Next-Cursor` header, absent on the last page |
 | Filter keys | GET | `/api/keys?environment=<env>` | Filter keys by environment (or `&service=`) |
 | Add key | POST | `/api/keys` | Create single encrypted key |
-| Bulk import | POST | `/api/keys/bulk` | Batch import `.env` keys atomically |
+| Bulk import | POST | `/api/keys/bulk` | Batch import `.env` keys atomically (up to 500 items per request) |
 | Update key | PUT | `/api/keys/:id` | Update metadata or encrypted value |
 | Delete key | DELETE | `/api/keys/:id` | Delete key permanently |
 | Decrypt | POST | `/api/keys/:id/decrypt` | Decrypt and return raw secret |
 | List logs | GET | `/api/projects/:projectId/logs` | Audit & request log entries, paginated |
 | Poll logs | GET | `/api/projects/:projectId/logs?since=<ISO>` | Entries newer than a checkpoint (live tail) |
 | Log filters | GET | `/api/projects/:projectId/logs/filters` | Distinct endpoints, users, methods, sources, statuses, keys, event types |
+
+**Key routes are rate limited.** `/api/keys*` allows 600 requests a minute per user (web, CLI and MCP share it) and per service token, then answers `429 RATE_LIMITED` with `Retry-After`. `apivault run` and `env export` make one request per key, so parallel CI jobs should use separate tokens.
 
 **Service tokens reach only `/api/keys*` and `/api/cli/me`.** Every other route above — `/api/projects`, the logs routes, the CLI pairing routes — resolves a human user and answers a `av_live_` bearer with `401 Unauthorized`. This is a property of how those routes authenticate, not a per-route denylist, so it holds for any route not listed as service-capable.
 
@@ -186,6 +189,9 @@ On `keys add`, `--key` is the **API secret value**; `--vault-key` is the vault k
 | `VAULT_KEY_REQUIRED` | Custom encryption; vault key needed |
 | `INVALID_VAULT_KEY` | Wrong vault key |
 | `VAULT_KEY_RATE_LIMITED` / HTTP 429 | Too many wrong vault keys; the CLI reports how long to wait |
+| `RATE_LIMITED` / HTTP 429 | More than 600 key requests a minute from this user or service token; the CLI reports how long to wait |
+| `TOO_MANY_ITEMS` / HTTP 400 | Bulk import over 500 items; nothing was saved, split into batches |
+| `INVALID_LIMIT` / `INVALID_CURSOR` / HTTP 400 | `limit` outside 1–500, or a `cursor` that isn't a key in the listing |
 | `INSUFFICIENT_SCOPE` / HTTP 403 | Service token lacks the scope for this call |
 | `ENVIRONMENT_MISMATCH` / HTTP 403 | Requested environment contradicts the token's pin |
 | `SERVICE_TOKEN_EXPIRED` / `SERVICE_TOKEN_REVOKED` | Token is past its expiry, or was revoked |
