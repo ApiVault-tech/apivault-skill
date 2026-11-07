@@ -142,4 +142,4 @@ apivault-skill/
 
 ## License
 
-[MIT](LICENSE) © 2026 TLB-STATION
+[MIT](LICENSE) © 2026 TLB STATION
