@@ -35,11 +35,11 @@ Canonical file: `.apivault.json` (also parses `.apivaultrc`, `apivault.json`, `.
 }
 ```
 
-### Resolution Priority (Highest to Lowest)
-1. Command-line flags (`-p`, `--env`, `--vault-key`)
-2. Environment variables (`APIVAULT_PROJECT`, `APIVAULT_KEY`)
-3. Local directory config (`.apivault.json`)
-4. Global user config (`~/.apivault/config.json`)
+`.apivault.json` is usually committed so teammates share the project link. Keep `vaultKey` out of it: set the vault key globally, in `APIVAULT_KEY`, or let the CLI prompt.
+
+### Resolution Priority
+
+The full order for each setting is in the Resolution Precedence table in `SKILL.md`: flags, then environment variables, then local config, then global config.
 
 Two exceptions under `APIVAULT_TOKEN`. The **project** is fixed by the token and needs no local config — a contradicting `-p` is refused by the server (403). The **environment** resolves `--env` → the token's pin → local config → global config, so the pin outranks config: a pinned token can only read its own environment, and a fresh CI container has no config to read.
 
@@ -56,18 +56,6 @@ The project value may be a project **id** or its **slug** — the server resolve
 | `APIVAULT_PROJECT` | all commands | Same value as `-p`, from the environment |
 | `NO_COLOR` | UI | Disable terminal colors |
 | `FORCE_COLOR=0` | UI | Disable terminal colors |
-
-## Server URL
-
-Compiled into the CLI at build time:
-
-```
-src/config.ts → API_BASE_URL
-```
-
-Default: `https://apivault.tech`
-
-Change and rebuild for local or self-hosted development. Not user-configurable at runtime.
 
 ## HTTP API (CLI & Backend)
 
@@ -207,7 +195,26 @@ its project even when it is denied, expiry, revocation, IP and scope denials are
 that project with the `service` source and the token's name, so a pipeline's failed attempts are
 visible on the Logs page rather than vanishing.
 
-## Source Layout (apivault-cli)
+## For CLI Maintainers
+
+The sections below are for people working on the CLI itself, not for using it.
+
+### Server URL
+
+Compiled into the CLI at build time (`src/config.ts` → `API_BASE_URL`, default `https://apivault.tech`). Change and rebuild for local or self-hosted development; it is not configurable at runtime.
+
+### Install From Source
+
+```bash
+git clone https://github.com/ApiVault-tech/apivault.git
+cd apivault
+npm install && npm run build
+npm install -g .
+```
+
+Development without a global install: `npm run dev -- <command>`
+
+### Source Layout (apivault-cli)
 
 ```
 apivault-cli/
@@ -231,7 +238,7 @@ apivault-cli/
 └── package.json              # bin: apivault
 ```
 
-## Build Scripts
+### Build Scripts
 
 | Script | Command | Purpose |
 |--------|---------|---------|

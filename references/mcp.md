@@ -171,7 +171,7 @@ entries are stored per project.
 
 The MCP server advertises this instruction string to clients:
 
-> ApiVault MCP server. Use list_keys to browse masked keys, reveal_key when you need the raw secret, and add/update/delete for management. Custom-mode vaults require vault_key on reveal/add/update when changing values.
+> ApiVault Remote MCP Server. Manage encrypted API keys and credentials. Use list_keys to browse masked keys, reveal_key to decrypt raw secret values, and add_key / update_key / delete_key for management. Custom-mode vaults require vault_key when adding, updating, or revealing keys.
 
 ## Client Configuration Examples
 
@@ -201,6 +201,12 @@ Each connection shows client name, granted scopes, and created/last-used timesta
 
 1. Start with `list_keys` — never assume key ids or environment names.
 2. Call `reveal_key` only when the raw secret is strictly necessary for the task.
-3. After revealing, write the secret to the user's env file or process config — not into the conversation.
+3. A revealed value is already in your context. Write it straight to the user's env file or process config, and never repeat it in the conversation. When the goal is only to run the user's app with its secrets, suggest `apivault run` instead, which never exposes the values to you.
 4. For write operations, confirm the target environment and service with the user when ambiguous.
-5. On auth failure, reconnect or complete OAuth once; do not retry tools in a loop without user interaction.
+5. Confirm with the user before `delete_key` or replacing a value with `update_key`; both are permanent.
+6. On auth failure, reconnect or complete OAuth once; do not retry tools in a loop without user interaction.
+
+## For Maintainers
+
+- Self-hosted MCP base URL: set `MCP_BASE_URL` on the ApiVault server; the endpoint is `{MCP_BASE_URL}/mcp`.
+- Server implementation: `src/mcp/server.ts`, route `src/app/mcp/route.ts` (in the ApiVault server and the standalone `apivault-mcp` repo).

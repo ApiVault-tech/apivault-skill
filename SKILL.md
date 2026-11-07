@@ -1,14 +1,16 @@
 ---
 name: apivault
 description: >-
-  Integrate with ApiVault for encrypted API key management. Covers the remote
-  MCP server (OAuth, scoped tools for list/get/reveal/add/update/delete keys)
-  and the apivault CLI (browser login, keys CRUD, secret injection via run,
-  dotenv export). Use when the user mentions ApiVault, apivault, apivault-cli,
-  vault secrets, MCP server for API keys, apivault run, secret injection,
-  Cursor/Claude MCP integration, or managing encrypted credentials for AI
-  agents and developers. Prefer MCP inside IDE agents; prefer CLI for terminal
-  workflows and process injection.
+  Work with ApiVault, the encrypted API key vault, through its remote MCP
+  server (OAuth; list, get, reveal, add, update and delete keys) and the
+  apivault CLI (browser login, keys commands, `apivault run` secret injection,
+  .env export, service tokens for CI, audit logs). Use whenever the user
+  mentions ApiVault, apivault, apivault-cli, APIVAULT_TOKEN, APIVAULT_KEY or
+  av_live_ tokens, or wants API keys from their vault loaded into an app, a
+  .env file, a CI pipeline or an MCP client such as Cursor or Claude, even
+  without naming ApiVault when the project has a .apivault.json file. Not for
+  HashiCorp Vault, AWS Secrets Manager or other secret stores. Prefer MCP
+  inside IDE agents; prefer the CLI for terminal, CI and process injection.
 ---
 
 # ApiVault
@@ -18,7 +20,7 @@ ApiVault is a secure API key vault with two integration surfaces:
 | Surface | Best for | Auth |
 |---------|----------|------|
 | **MCP server** | AI agents in Cursor, Claude Desktop, and other MCP clients | OAuth (browser approval, scoped tokens) |
-| **CLI** (`apivault`) | Terminal workflows, CI scripts, injecting secrets into local processes | Browser connect flow (`apivault login`) |
+| **CLI** (`apivault`) | Terminal workflows, CI scripts, injecting secrets into local processes | Browser connect flow (`apivault login`), or a service token in CI |
 
 Production endpoint: `https://apivault.tech`
 
@@ -33,10 +35,11 @@ Both surfaces communicate with ApiVault exclusively over HTTPS. Never import Api
 Apply these in every workflow:
 
 1. **Least privilege** — request only the MCP scopes needed; use masked `list_keys` / `get_key` before calling `reveal_key`.
-2. **No secret leakage** — do not paste revealed values into chat, commits, logs, or issue trackers. Inject secrets via env vars or local files the user controls.
-3. **Never commit** - `~/.apivault/`, exported `.env` files, tokens, or vault keys.
-4. **Separate credentials** — MCP tokens and CLI tokens are independent; revoking one does not revoke the other.
-5. **Custom vault mode** - when the user enables custom encryption, a `vault_key` is required for reveal/write operations and **cannot be recovered** if forgotten.
+2. **Keep secrets out of your own context.** Anything you reveal — a `reveal_key` result, or `keys get --reveal` run in your shell — lands in the conversation transcript. When the goal is to give an app its secrets, have the CLI load them straight into the process (`apivault run`) or a file the user controls (`apivault env export`), so the values never pass through you. Reveal a value only when the task needs the raw text, and then never repeat it in chat, commits, logs, or issue trackers.
+3. **Never commit** `~/.apivault/`, exported `.env` files, tokens, or vault keys. `.apivault.json` sits in the repository root and is usually committed so teammates share the project link, so it must never hold a `vaultKey` — keep the vault key in `APIVAULT_KEY`, the global config, or the prompt.
+4. **Confirm before destroying data.** `delete_key` and `keys delete` are permanent, and changing a value with `update_key` replaces the old one. Confirm the exact key and environment with the user first, and never add `-f` to `keys delete` unless the user asked for a non-interactive delete.
+5. **Separate credentials** — MCP tokens and CLI tokens are independent; revoking one does not revoke the other.
+6. **Custom vault mode** — when the user enables custom encryption, a `vault_key` is required for reveal/write operations and **cannot be recovered** if forgotten. Ask the user for it; never guess.
 
 ---
 
@@ -46,8 +49,8 @@ Remote MCP with OAuth. Ideal when an agent needs to browse or manage vault keys 
 
 ### Project-Scoped Connections
 
-ApiVault supports multi-project workspaces. When an AI agent initiates an MCP connection and opens the browser for OAuth approval, the user will select a **Target Project**. 
-The resulting authorization token is permanently bound to that project. All MCP tool operations (like fetching, revealing, or adding keys) automatically route to the selected workspace, requiring no manual project IDs or CLI flags in your MCP tool payloads.
+ApiVault supports multi-project workspaces. When an AI agent initiates an MCP connection and opens the browser for OAuth approval, the user selects a **Target Project**.
+The resulting authorization token is permanently bound to that project. All MCP tool operations route to that workspace, so tool payloads need no project ids. To work in another project, the user connects again and picks it.
 
 ### Setup
 
@@ -77,7 +80,7 @@ If tools return an auth error or the server status is `needsAuth`:
 
 1. Follow the MCP client's OAuth flow (reconnect the server or use the client's auth tool if provided).
 2. User approves scopes and project in the browser.
-3. Retry the intended tool.
+3. Retry the intended tool once. Don't loop on auth failures without the user.
 
 Manage and revoke connections in ApiVault → **Settings → MCP Connections**.
 
@@ -108,27 +111,36 @@ Discover schemas with MCP tool inspection before calling. Summary:
 
 **Find a key for an integration task**
 
-1. `list_keys` with `environment` filter (e.g. `"Production"`)
+1. `list_keys` with an `environment` filter (e.g. `"Production"`) — never assume key ids or environment names
 2. `get_key` to confirm the correct `id`
-3. Only if the raw secret is required: `reveal_key` — then use it immediately in env/config, not in chat
+3. Only if the raw secret is required: `reveal_key`, then write it straight into the user's env file or config
 
 **Add a new credential**
 
 1. Confirm scope includes `keys:write`
-2. `add_key` with `name`, `key`, `service`, `environment`
-3. Pass `vault_key` when the vault uses custom encryption
+2. Confirm the environment and service with the user when they're ambiguous
+3. `add_key` with `name`, `key`, `service`, `environment`
+4. Pass `vault_key` when the vault uses custom encryption
 
-**Handle errors**
+**Rotate or remove a credential**
+
+1. `list_keys` / `get_key` to find the exact key, and confirm it with the user
+2. Rotate with `update_key` and the new `key` value; remove with `delete_key` only after the user agrees
+
+### Errors
+
+These codes come back from both the MCP tools and the CLI.
 
 | Code | Meaning | Action |
 |------|---------|--------|
-| `INSUFFICIENT_SCOPE` | Token lacks required scope | Re-authenticate with broader scopes or use a different tool |
+| `INSUFFICIENT_SCOPE` | Token lacks the required scope | MCP: reconnect with the scope. Service token: issue a new token, since scopes can't be widened |
 | `NOT_FOUND` | Key id invalid | Re-list keys |
-| `DUPLICATE_KEY` | Key name already exists in this environment | Choose a unique name, change environment, or update existing key |
-| `VAULT_KEY_REQUIRED` | Custom encryption; vault key needed | Pass `vault_key` |
+| `DUPLICATE_KEY` | Key name already exists in this environment | Choose a unique name, change environment, or update the existing key (with the user's OK) |
+| `VAULT_KEY_REQUIRED` | Custom encryption; vault key needed | Ask the user, then pass `vault_key` / `--vault-key` / `APIVAULT_KEY` |
 | `INVALID_VAULT_KEY` | Wrong vault key | Ask the user for the correct key — never guess or re-send the same one |
 | `VAULT_KEY_RATE_LIMITED` | Too many wrong vault keys (10 per 15 min, per user and source address) | Stop. Wait the delay stated in the error, and tell the user rather than retrying |
-| `RATE_LIMITED` | More than 600 key requests in a minute from one user or service token | Wait the delay stated in the error before the next call; don't loop over keys faster than that |
+| `RATE_LIMITED` | More than 600 key requests in a minute; a user's web, CLI and MCP calls share one budget, each service token has its own | Wait the stated delay; don't loop over keys faster than that, and give parallel CI jobs separate service tokens |
+| `ENVIRONMENT_MISMATCH` | `--env` contradicts the service token's environment pin | Drop `--env` and let the pin apply, or use a token pinned to that environment |
 
 **Never brute-force a vault key.** Wrong vault keys are rate limited server-side across every
 surface (MCP, CLI, and web). A correct key clears the counter, so revealing many keys in a row is
@@ -140,7 +152,7 @@ role each lands on the Logs page with its status and error code, attributed to t
 the client name the agent reports. Guessing is visible to the whole project, so ask the user for
 the right key instead of trying another.
 
-For OAuth endpoints, token TTLs, and protocol details, see [references/mcp.md](references/mcp.md).
+For OAuth endpoints, token TTLs, and full tool schemas, see [references/mcp.md](references/mcp.md).
 
 ---
 
@@ -161,21 +173,7 @@ apivault --version
 - macOS / Linux: `curl -fsSL https://apivault.tech/install.sh | sh`
 - Windows (PowerShell): `irm https://apivault.tech/install.ps1 | iex`
 
-**From source:** [github.com/ApiVault-tech/apivault](https://github.com/ApiVault-tech/apivault)
-
-```bash
-git clone https://github.com/ApiVault-tech/apivault.git
-cd apivault
-npm install && npm run build
-npm install -g .
-```
-
-Development without global install: `npm run dev -- <command>`
-
-### Requirements
-
-- Node.js >= 18.17
-- Reachable ApiVault server
+Requires Node.js >= 18.17 (the standalone installers bundle their own).
 
 ### First-Time Auth
 
@@ -191,13 +189,13 @@ Local state:
 
 | File | Purpose |
 |------|---------|
-| `token.json` | CLI auth token |
+| `token.json` | CLI auth token — never commit or share |
 | `config.json` | Global defaults: `project`, `run.env`, `run.command`, `vaultKey` |
-| `.apivault.json` | Local per-project configuration in repository root |
+| `.apivault.json` | Local per-project settings (`project`, `run.env`, `run.command`) — usually committed, so no `vaultKey` |
 
 ### Headless Auth — Service Tokens (CI/CD)
 
-`apivault login` needs a browser. For pipelines, containers, and scheduled jobs, use a **service token**: a project-scoped machine credential created in the web app under **project → Service Tokens**. Shown once, prefixed `av_live_`, stored only as a hash.
+`apivault login` needs a browser. For pipelines, containers, and scheduled jobs, use a **service token**: a project-scoped machine credential created in the web app under **project → Service Tokens**. Shown once, prefixed `av_live_`, stored only as a hash. Put it in the CI system's secret store, never in the repository.
 
 ```bash
 export APIVAULT_TOKEN="av_live_..."
@@ -221,7 +219,7 @@ apivault run -- npm start  # no login, no ~/.apivault/, no --env needed
 
 **Environment pinning.** A token may be pinned to one environment. When it is, `run` and `env export` use it automatically — do not add `--env`. An explicit `--env` that contradicts the pin fails with `ENVIRONMENT_MISMATCH` rather than silently reading the wrong secrets. An unpinned token has no default and requires `--env`.
 
-**Writing without a terminal.** `keys add` prompts for anything not passed as a flag, so in CI supply them: `--name` and `--key` are required, `--environment` falls back to the token's pin (required when unpinned), `--service` defaults to `Custom`. A missing flag is reported as an error rather than hanging. `keys delete` requires `-f` (or `--json`) — without a terminal to confirm on it refuses rather than assuming yes. `keys update` prompts for every field with no flag equivalent — to replace a value headlessly, `keys delete -f` then `keys add`. On a custom-vault-key project pass `--vault-key` or set `APIVAULT_KEY`, or any decrypting command stops for lack of a prompt.
+**Writing without a terminal.** `keys add` prompts for anything not passed as a flag, so in CI supply them: `--name` and `--key` are required, `--environment` falls back to the token's pin (required when unpinned), `--service` defaults to `Custom`. A missing flag is reported as an error rather than hanging. `keys delete` requires `-f` (or `--json`) — without a terminal to confirm on it refuses rather than assuming yes. `keys update` prompts for every field with no flag equivalent — to replace a value headlessly, `keys delete -f` then `keys add`. On a custom-vault-key project set `APIVAULT_KEY` from the CI secret store, or any decrypting command stops for lack of a prompt.
 
 **Do not suggest `apivault login` when `APIVAULT_TOKEN` is set** — it refuses by design. Service tokens are revoked from the project's Service Tokens page, never with `apivault logout`.
 
@@ -244,7 +242,7 @@ apivault keys list
 apivault keys get <id> [--reveal] [--vault-key <vault_key>]
 apivault keys add [--name --service --environment --key --notes] [--vault-key <vault_key>]
 apivault keys update <id>                    # interactive only
-apivault keys delete <id> [-f]
+apivault keys delete <id> [-f]               # permanent; confirm with the user first
 
 # Run — inject secrets into a child process (preferred for local dev)
 apivault run --env <env> [--vault-key <vault_key>] -- <command> [args...]
@@ -255,7 +253,7 @@ apivault config list [--local | --global]
 apivault config get <key> [--local | --global]
 apivault config set <key> [value] [--local | --global]
 apivault config delete <key> [--local | --global]
-# Valid keys: project, run.command, run.env, vaultKey
+# Valid keys: project, run.command, run.env, vaultKey (vaultKey: global only, never --local)
 
 # Dotenv files
 apivault env export --env <env> [-o path] [--force] [--vault-key <vault_key>]
@@ -265,13 +263,16 @@ apivault env restore [-C <project-dir>]
 apivault logs                                # recent entries for the active project
 apivault logs [-n <limit>] [--page <n>]
 apivault logs --status <success|error|CODE>  # repeatable; CODE e.g. 200, 404
-apivault logs --source <cli|mcp|web|api|service|integration> --method <GET|POST|PUT|PATCH|DELETE>
+apivault logs --source <cli|mcp|web|api|service|integration> --method <GET|POST|PUT|DELETE>
 apivault logs --event-type <KEY_REVEALED|KEY_ROTATED|...> --user <userId> --key <idOrName>
 apivault logs --date <YYYY-MM-DD> [--end-date <YYYY-MM-DD>]
 apivault logs --search <query>               # log id, endpoint, method, source, IP, event, actor
 apivault logs --follow                       # stream new entries; `apivault logs tail` is an alias
 apivault logs get <id>                       # full detail; accepts an id prefix
 ```
+
+`--vault-key` on the command line is saved in shell history. When you run commands for the user,
+prefer `APIVAULT_KEY` set in their environment, or let the CLI prompt them.
 
 Use `logs` to answer "what happened to this key / project" without revealing any secret: entries
 carry endpoint, status, actor, duration, and a details payload, never a key value. With `--json`,
@@ -286,6 +287,7 @@ carry endpoint, status, actor, duration, and a details payload, never a key valu
 | Run command | args after `--` → Local `run.command` → Global `run.command` → error |
 | Vault key | `--vault-key` → `APIVAULT_KEY` env → Local `vaultKey` → Global `vaultKey` → prompt |
 
+The CLI still reads a local `vaultKey` if one exists, but never set one: `.apivault.json` is usually committed. If you find a `vaultKey` in a repository's `.apivault.json`, tell the user — the key is exposed and should be moved out.
 
 `APIVAULT_KEY` applies to reveal, add, update, run, and env export. On `keys add`, `--key` is the API secret value; `--vault-key` is the vault key.
 
@@ -308,14 +310,19 @@ apivault env export --env Production
 apivault env export --env Staging -o .env.local --force
 ```
 
+Check that the output file is covered by `.gitignore` before exporting.
+
 **Scripting**
 
 ```bash
-apivault --json keys list
-apivault --json keys get <id> --reveal
+apivault --json keys list                    # masked metadata — safe to read
+apivault --json keys get <id> --reveal       # raw secret — for the user's scripts, not your shell
 ```
 
-For HTTP routes, config schema, and CLI internals, see [references/cli.md](references/cli.md).
+Write `--reveal` into scripts the user runs (piping the value where it is needed), rather than
+running it yourself: its output would land in your context (see Security Principle 2).
+
+For config files, HTTP routes, and CLI internals, see [references/cli.md](references/cli.md).
 
 ---
 
@@ -337,29 +344,14 @@ For HTTP routes, config schema, and CLI internals, see [references/cli.md](refer
 
 ## Troubleshooting
 
+For error codes, see [Errors](#errors) above.
+
 | Symptom | Likely cause | Fix |
 |---------|--------------|-----|
 | MCP tools unavailable | Not authenticated | Reconnect apivault MCP server; complete OAuth in browser |
-| `INSUFFICIENT_SCOPE` | Token missing scope | Re-connect with required scopes |
 | CLI HTTP 401 | Not logged in, or the token expired (CLI tokens last 90 days) | `apivault login`; check the expiry with `apivault --json whoami` |
 | `APIVAULT_TOKEN was not recognised` | Service token mistyped, deleted, or from another instance | Re-copy the full `av_live_...` value; do **not** suggest `apivault login` |
-| `ENVIRONMENT_MISMATCH` | `--env` contradicts the token's environment pin | Drop `--env` and let the pin apply, or use a token pinned to that environment |
-| `INSUFFICIENT_SCOPE` on `keys add/update/delete` | Service token lacks `keys:write` | Issue a token with the scope; scopes cannot be widened after creation |
 | `not available to service tokens` | `projects list` / `logs` under `APIVAULT_TOKEN` | Use the web app, or run as a signed-in user |
-| `VAULT_KEY_REQUIRED` | Custom encryption vault | Provide `vault_key` / `--vault-key` / `APIVAULT_KEY` |
-| HTTP 429 / `VAULT_KEY_RATE_LIMITED` | Too many wrong vault keys | Wait for the stated delay; do not retry the same key |
-| HTTP 429 / `RATE_LIMITED` | Over 600 key requests a minute; a user's web, CLI and MCP calls share one budget, each service token has its own | Wait for the stated delay; give parallel CI jobs separate service tokens |
-| Secrets not loading in `run` | Wrong environment or no keys | Check `list_keys` / `keys list` for environment name |
+| Secrets not loading in `run` | Wrong environment or no keys | Check `list_keys` / `keys list` for the environment name |
 | `.env` files missing after `run` | Interrupted restore | `apivault env restore` |
 | PowerShell strips `--` | Shell parsing | CLI falls back to remaining args; quote command if needed |
-| Local dev against self-hosted ApiVault | Compiled server URL | Change `API_BASE_URL` in CLI `src/config.ts`, rebuild |
-
----
-
-## Development
-
-**CLI repo** — key scripts: `npm run dev`, `npm run build`, `npm run typecheck`
-
-**ApiVault server** — MCP implementation: `src/mcp/server.ts`, route: `src/app/mcp/route.ts`
-
-Local MCP base URL: set `MCP_BASE_URL` env on the ApiVault server.
