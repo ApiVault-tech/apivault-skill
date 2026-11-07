@@ -92,7 +92,7 @@ Decrypt and return the raw secret.
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `id` | string | Yes | Key id |
-| `vault_key` | string | No | Custom vault key (required when vault uses custom encryption) |
+| `vault_key` | string | No | Fallback for clients without header support; ignored when the `X-Vault-Key` connection header is set |
 
 Returns decrypted key object including raw value.
 
@@ -109,7 +109,7 @@ Create a new API key.
 | `service` | string | No | Service label |
 | `environment` | string | No | Environment label |
 | `notes` | string | No | Optional notes |
-| `vault_key` | string | No | Vault key when custom encryption is enabled |
+| `vault_key` | string | No | Fallback for clients without header support; ignored when the `X-Vault-Key` connection header is set |
 
 Returns: `{ key: {...} }` (created record, masked).
 
@@ -125,7 +125,7 @@ Update an existing key's metadata or value.
 | `environment` | string | No | New environment |
 | `notes` | string | No | New notes |
 | `key` | string | No | New raw secret value |
-| `vault_key` | string | No | Required when changing value on custom-encryption vault |
+| `vault_key` | string | No | Fallback for clients without header support; ignored when the `X-Vault-Key` connection header is set |
 
 Returns: `{ key: {...} }` (updated record, masked).
 
@@ -146,8 +146,8 @@ Returns confirmation object.
 | `INSUFFICIENT_SCOPE` | Token lacks the scope required for this tool |
 | `NOT_FOUND` | Key id does not exist |
 | `DUPLICATE_KEY` | Key with this name already exists in the environment |
-| `VAULT_KEY_REQUIRED` | Custom encryption; `vault_key` must be provided |
-| `INVALID_VAULT_KEY` | Provided vault key is incorrect |
+| `VAULT_KEY_REQUIRED` | Custom encryption and no vault key configured; the message asks the agent to have the user add the `X-Vault-Key` header |
+| `INVALID_VAULT_KEY` | Provided vault key is incorrect; when it came from the header, the message says to fix the client settings |
 | `VAULT_KEY_RATE_LIMITED` | Too many incorrect vault keys — 10 per 15 minutes, per user and source address (HTTP 429 with `Retry-After`) |
 | `RATE_LIMITED` | More than 600 key requests in a minute; shared with the user's web and CLI use (HTTP 429 with `Retry-After`) |
 | `VALIDATION` | Required fields missing or invalid |
@@ -171,7 +171,7 @@ entries are stored per project.
 
 The MCP server advertises this instruction string to clients:
 
-> ApiVault Remote MCP Server. Manage encrypted API keys and credentials. Use list_keys to browse masked keys, reveal_key to decrypt raw secret values, and add_key / update_key / delete_key for management. Custom-mode vaults require vault_key when adding, updating, or revealing keys.
+> ApiVault Remote MCP Server. Manage encrypted API keys and credentials. Use list_keys to browse masked keys, reveal_key to decrypt raw secret values, and add_key / update_key / delete_key for management. Projects with a custom vault key need it to reveal, add or change values. The user should set it once as an X-Vault-Key header in this server's connection settings; never ask them to type the vault key into the chat.
 
 ## Client Configuration Examples
 
@@ -188,6 +188,13 @@ The MCP server advertises this instruction string to clients:
 ```
 
 OAuth completes automatically on first connection. No API keys in config.
+
+### Custom vault key header
+
+Projects with a custom vault key add an `X-Vault-Key` header to the same entry, read from an
+environment variable (Cursor `${env:APIVAULT_KEY}`, Claude Code `${APIVAULT_KEY}`) or a VS Code
+`promptString` input with `"password": true`. The server uses it for `reveal_key`, `add_key` and
+`update_key` and ignores any `vault_key` argument while it is set.
 
 ## Connection Management
 
