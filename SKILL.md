@@ -39,7 +39,7 @@ Apply these in every workflow:
 3. **Never commit** `~/.apivault/`, exported `.env` files, tokens, or vault keys. `.apivault.json` sits in the repository root and is usually committed so teammates share the project link, so it must never hold a `vaultKey` — keep the vault key in `APIVAULT_KEY`, the global config, or the prompt.
 4. **Confirm before destroying data.** `delete_key` and `keys delete` are permanent, and changing a value with `update_key` replaces the old one. Confirm the exact key and environment with the user first, and never add `-f` to `keys delete` unless the user asked for a non-interactive delete.
 5. **Separate credentials** — MCP tokens and CLI tokens are independent; revoking one does not revoke the other.
-6. **Custom vault mode** — when the user enables custom encryption, a vault key is required for reveal/write operations and **cannot be recovered** if forgotten. Never guess it, and don't ask the user to paste it into the chat: over MCP it belongs in the connection's `X-Vault-Key` header (see [Custom vault keys over MCP](#custom-vault-keys-over-mcp)); for the CLI, in `APIVAULT_KEY` or the prompt.
+6. **Custom vault mode** — when the user enables custom encryption, a vault key is required for reveal/write operations and **cannot be recovered** if forgotten. Never guess it, and don't ask the user to paste it into the chat: over MCP it belongs in the connection's `X-Secret-Key` header (see [Custom vault keys over MCP](#custom-vault-keys-over-mcp)); for the CLI, in `APIVAULT_KEY` or the prompt.
 
 ---
 
@@ -107,28 +107,29 @@ Discover schemas with MCP tool inspection before calling. Summary:
 | `update_key` | `keys:write` | Update metadata or value. Args: `id` + fields to change |
 
 `reveal_key`, `add_key` and `update_key` also accept an optional `vault_key`. Leave it empty: it
-exists only for clients that can't send the `X-Vault-Key` header, and it is ignored when the
+exists only for clients that can't send the `X-Secret-Key` header, and it is ignored when the
 header is set.
 
 ### Custom vault keys over MCP
 
 A project with a custom vault key needs it to reveal, add or change values. The user sets it once
-as an `X-Vault-Key` header on the MCP server entry in their client, read from an environment
+as an `X-Secret-Key` header on the MCP server entry in their client, read from an environment
 variable or a prompt, and the server uses it for every tool. The key never passes through the
 chat, so you never see it.
 
 ```jsonc
 // Cursor (.cursor/mcp.json)
-{ "mcpServers": { "apivault": { "url": "https://mcp.apivault.tech/mcp", "headers": { "X-Vault-Key": "${env:APIVAULT_KEY}" } } } }
+{ "mcpServers": { "apivault": { "url": "https://mcp.apivault.tech/mcp", "headers": { "X-Secret-Key": "${env:APIVAULT_KEY}" } } } }
 
 // Claude Code (.mcp.json)
-{ "mcpServers": { "apivault": { "type": "http", "url": "https://mcp.apivault.tech/mcp", "headers": { "X-Vault-Key": "${APIVAULT_KEY}" } } } }
+{ "mcpServers": { "apivault": { "type": "http", "url": "https://mcp.apivault.tech/mcp", "headers": { "X-Secret-Key": "${APIVAULT_KEY}" } } } }
 ```
 
 VS Code can prompt for it instead: a `promptString` input with `"password": true`, referenced
-as `${input:<id>}` in `headers`. When a tool returns `VAULT_KEY_REQUIRED`, help the user add the
+as `${input:<id>}` in `headers`. In Claude.ai and Claude for Desktop, the user adds a request
+header named `x-secret-key` when adding the custom connector (a beta some organizations have). When a tool returns `VAULT_KEY_REQUIRED`, help the user add the
 header rather than asking for the key. Only if their client can't add headers to a remote server
-(such as Claude's Connectors UI) and they explicitly choose to give the key in the chat, pass it as
+(such as ChatGPT) and they explicitly choose to give the key in the chat, pass it as
 `vault_key`, and tell them it will stay in the conversation history.
 | `delete_key` | `keys:write` | Permanently delete by `id` |
 
@@ -161,7 +162,7 @@ These codes come back from both the MCP tools and the CLI.
 | `INSUFFICIENT_SCOPE` | Token lacks the required scope | MCP: reconnect with the scope. Service token: issue a new token, since scopes can't be widened |
 | `NOT_FOUND` | Key id invalid | Re-list keys |
 | `DUPLICATE_KEY` | Key name already exists in this environment | Choose a unique name, change environment, or update the existing key (with the user's OK) |
-| `VAULT_KEY_REQUIRED` | Custom encryption; vault key needed | MCP: have the user add the `X-Vault-Key` header. CLI: have them set `APIVAULT_KEY` or answer the prompt |
+| `VAULT_KEY_REQUIRED` | Custom encryption; vault key needed | MCP: have the user add the `X-Secret-Key` header. CLI: have them set `APIVAULT_KEY` or answer the prompt |
 | `INVALID_VAULT_KEY` | Wrong vault key | Have the user correct it (the header, or `APIVAULT_KEY`) — never guess or re-send the same one |
 | `VAULT_KEY_RATE_LIMITED` | Too many wrong vault keys (10 per 15 min, per user and source address) | Stop. Wait the delay stated in the error, and tell the user rather than retrying |
 | `RATE_LIMITED` | More than 600 key requests in a minute; a user's web, CLI and MCP calls share one budget, each service token has its own | Wait the stated delay; don't loop over keys faster than that, and give parallel CI jobs separate service tokens |
