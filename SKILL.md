@@ -36,10 +36,10 @@ Apply these in every workflow:
 
 1. **Least privilege** — request only the MCP scopes needed; use masked `list_keys` / `get_key` before calling `reveal_key`.
 2. **Keep secrets out of your own context.** Anything you reveal — a `reveal_key` result, or `keys get --reveal` run in your shell — lands in the conversation transcript. When the goal is to give an app its secrets, have the CLI load them straight into the process (`apivault run`) or a file the user controls (`apivault env export`), so the values never pass through you. Reveal a value only when the task needs the raw text, and then never repeat it in chat, commits, logs, or issue trackers.
-3. **Never commit** `~/.apivault/`, exported `.env` files, tokens, or vault keys. `.apivault.json` sits in the repository root and is usually committed so teammates share the project link, so it must never hold a `vaultKey` — keep the vault key in `APIVAULT_KEY`, the global config, or the prompt.
+3. **Never commit** `~/.apivault/`, exported `.env` files, tokens, or vault keys. `.apivault.json` sits in the repository root and is usually committed so teammates share the project link, so it must never hold a vault key itself — only a `${env:NAME}` reference. The CLI saves vault keys per project in the OS credential store (`apivault config set vaultKey`).
 4. **Confirm before destroying data.** `delete_key` and `keys delete` are permanent, and changing a value with `update_key` replaces the old one. Confirm the exact key and environment with the user first, and never add `-f` to `keys delete` unless the user asked for a non-interactive delete.
 5. **Separate credentials** — MCP tokens and CLI tokens are independent; revoking one does not revoke the other.
-6. **Custom vault mode** — when the user enables custom encryption, a vault key is required for reveal/write operations and **cannot be recovered** if forgotten. Never guess it, and don't ask the user to paste it into the chat: over MCP it belongs in the connection's `X-Secret-Key` header (see [Custom vault keys over MCP](#custom-vault-keys-over-mcp)); for the CLI, in `APIVAULT_KEY` or the prompt.
+6. **Custom vault mode** — when the user enables custom encryption, a vault key is required for reveal/write operations and **cannot be recovered** if forgotten. Never guess it, and don't ask the user to paste it into the chat: over MCP it belongs in the connection's `X-Secret-Key` header (see [Custom vault keys over MCP](#custom-vault-keys-over-mcp)); for the CLI, have the user run `apivault config set vaultKey` themselves in the project folder (it prompts with hidden input), or set `APIVAULT_KEY` in CI.
 
 ---
 
@@ -162,8 +162,8 @@ These codes come back from both the MCP tools and the CLI.
 | `INSUFFICIENT_SCOPE` | Token lacks the required scope | MCP: reconnect with the scope. Service token: issue a new token, since scopes can't be widened |
 | `NOT_FOUND` | Key id invalid | Re-list keys |
 | `DUPLICATE_KEY` | Key name already exists in this environment | Choose a unique name, change environment, or update the existing key (with the user's OK) |
-| `VAULT_KEY_REQUIRED` | Custom encryption; vault key needed | MCP: have the user add the `X-Secret-Key` header. CLI: have them set `APIVAULT_KEY` or answer the prompt |
-| `INVALID_VAULT_KEY` | Wrong vault key | Have the user correct it (the header, or `APIVAULT_KEY`) — never guess or re-send the same one |
+| `VAULT_KEY_REQUIRED` | Custom encryption; vault key needed | MCP: have the user add the `X-Secret-Key` header. CLI: have them run `apivault config set vaultKey` in the project folder, or set `APIVAULT_KEY` in CI |
+| `INVALID_VAULT_KEY` | Wrong vault key | Have the user correct it (the header, `apivault config set vaultKey`, or `APIVAULT_KEY`) — never guess or re-send the same one |
 | `VAULT_KEY_RATE_LIMITED` | Too many wrong vault keys (10 per 15 min, per user and source address) | Stop. Wait the delay stated in the error, and tell the user rather than retrying |
 | `RATE_LIMITED` | More than 600 key requests in a minute; a user's web, CLI and MCP calls share one budget, each service token has its own | Wait the stated delay; don't loop over keys faster than that, and give parallel CI jobs separate service tokens |
 | `ENVIRONMENT_MISMATCH` | `--env` contradicts the service token's environment pin | Drop `--env` and let the pin apply, or use a token pinned to that environment |
@@ -210,14 +210,15 @@ apivault logout           # revoke token
 ```
 
 Local state:
-- **Global**: `~/.apivault/` (`%USERPROFILE%\.apivault\` on Windows) — `token.json`, `config.json`
+- **Global**: `~/.apivault/` (`%USERPROFILE%\.apivault\` on Windows) — `config.json`; the login token and vault keys live in the OS credential store (Keychain, Credential Manager, Secret Service), or `secrets.json` where there is none
 - **Local**: `.apivault.json` / `.apivaultrc` in project repository root
 
 | File | Purpose |
 |------|---------|
-| `token.json` | CLI auth token — never commit or share |
-| `config.json` | Global defaults: `project`, `run.env`, `run.command`, `vaultKey` |
-| `.apivault.json` | Local per-project settings (`project`, `run.env`, `run.command`) — usually committed, so no `vaultKey` |
+| OS credential store | CLI login token and per-project vault keys — never read them out for the user |
+| `config.json` | Global defaults: `project`, `run.env`, `run.command` |
+| `secrets.json` | Fallback for the token and vault keys on machines without a credential store — never commit or share |
+| `.apivault.json` | Local per-project settings (`project`, `run.env`, `run.command`, and optionally `vaultKey` as a `${env:NAME}` reference) — usually committed |
 
 ### Headless Auth — Service Tokens (CI/CD)
 
@@ -279,7 +280,9 @@ apivault config list [--local | --global]
 apivault config get <key> [--local | --global]
 apivault config set <key> [value] [--local | --global]
 apivault config delete <key> [--local | --global]
-# Valid keys: project, run.command, run.env, vaultKey (vaultKey: global only, never --local)
+# Valid keys: project, run.command, run.env, vaultKey
+# vaultKey is per project: `config set vaultKey` saves it in the OS credential store (hidden prompt);
+# `config set vaultKey '${env:NAME}'` writes a reference to .apivault.json; --global is refused
 
 # Dotenv files
 apivault env export --env <env> [-o path] [--force] [--vault-key <vault_key>]
@@ -298,7 +301,8 @@ apivault logs get <id>                       # full detail; accepts an id prefix
 ```
 
 `--vault-key` on the command line is saved in shell history. When you run commands for the user,
-prefer `APIVAULT_KEY` set in their environment, or let the CLI prompt them.
+have the user save the key with `apivault config set vaultKey` (they type it at a hidden prompt), or let the CLI prompt them.
+Never run `config set vaultKey <value>` with the key yourself, and don't set `APIVAULT_KEY` permanently: every project would get it.
 
 Use `logs` to answer "what happened to this key / project" without revealing any secret: entries
 carry endpoint, status, actor, duration, and a details payload, never a key value. With `--json`,
@@ -311,9 +315,9 @@ carry endpoint, status, actor, duration, and a details payload, never a key valu
 | Project Context (id or slug) | `-p/--project` → `APIVAULT_PROJECT` env → Local `.apivault.json` → Global `config.json` → first user project |
 | Environment | `--env` → service token's environment pin → Local `run.env` → Global `run.env` → error |
 | Run command | args after `--` → Local `run.command` → Global `run.command` → error |
-| Vault key | `--vault-key` → `APIVAULT_KEY` env → Local `vaultKey` → Global `vaultKey` → prompt |
+| Vault key | `--vault-key` → `APIVAULT_KEY` env → `${env:NAME}` in `.apivault.json` → key saved for the project (credential store) → prompt (offers to save) |
 
-The CLI still reads a local `vaultKey` if one exists, but never set one: `.apivault.json` is usually committed. If you find a `vaultKey` in a repository's `.apivault.json`, tell the user — the key is exposed and should be moved out.
+CLI 1.7 and earlier could write the key itself into `.apivault.json`; 1.8 still reads it with a warning. If you find a literal `vaultKey` (not `${env:...}`) in a repository's `.apivault.json`, tell the user — the key is exposed. `apivault config set vaultKey` moves it out, and they should change the vault key if the file was committed. `apivault config get vaultKey` shows a saved key only masked.
 
 `APIVAULT_KEY` applies to reveal, add, update, run, and env export. On `keys add`, `--key` is the API secret value; `--vault-key` is the vault key.
 

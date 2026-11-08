@@ -5,9 +5,9 @@
 ### Global Configuration (`~/.apivault/`)
 Directory: `~/.apivault/` (Windows: `%USERPROFILE%\.apivault\`)
 
-- **`config.json`**: System-wide defaults for `project`, `run.command`, `run.env`, and `vaultKey`.
-- **`token.json`**: Device authentication token generated upon `apivault login`.
-- Unix file permissions: `0600`.
+- **`config.json`**: System-wide defaults for `project`, `run.command` and `run.env`. No secrets.
+- **OS credential store** (Keychain, Credential Manager, Secret Service): the device token from `apivault login` and vault keys saved per project. Machines without one use `secrets.json` (`0600` on Unix); `APIVAULT_NO_KEYCHAIN=1` forces the file.
+- CLI 1.7 and earlier used `token.json` and a `vaultKey` in `config.json`; 1.8 moves both into the credential store on first run.
 
 ```json
 {
@@ -15,8 +15,7 @@ Directory: `~/.apivault/` (Windows: `%USERPROFILE%\.apivault\`)
   "run": {
     "command": "npm start",
     "env": "Production"
-  },
-  "vaultKey": "your-custom-vault-key"
+  }
 }
 ```
 
@@ -35,7 +34,7 @@ Canonical file: `.apivault.json` (also parses `.apivaultrc`, `apivault.json`, `.
 }
 ```
 
-`.apivault.json` is usually committed so teammates share the project link. Keep `vaultKey` out of it: set the vault key globally, in `APIVAULT_KEY`, or let the CLI prompt.
+`.apivault.json` is usually committed so teammates share the project link. It never holds a vault key itself. It may hold a reference, `"vaultKey": "${env:APIVAULT_KEY_MY_APP}"`, which the CLI reads from that variable and keeps out of `apivault run`'s child process. Otherwise the key is saved per project with `apivault config set vaultKey`.
 
 ### Resolution Priority
 
@@ -50,8 +49,9 @@ The project value may be a project **id** or its **slug** — the server resolve
 
 | Variable / Flag | Used by | Purpose |
 |----------|---------|---------|
-| `APIVAULT_TOKEN` | all commands | Service token (`av_live_...`) for headless/CI auth. Outranks `~/.apivault/token.json` |
-| `APIVAULT_KEY` / `--vault-key` | reveal, add, update, run, env | Custom vault encryption key |
+| `APIVAULT_TOKEN` | all commands | Service token (`av_live_...`) for headless/CI auth. Outranks the saved device token |
+| `APIVAULT_KEY` / `--vault-key` | reveal, add, update, run, env | Custom vault encryption key. For CI or one command; not passed to `run`'s child |
+| `APIVAULT_NO_KEYCHAIN` | all commands | Keep the token and vault keys in `~/.apivault/secrets.json` instead of the OS credential store |
 | `-p, --project <id\|slug>` | all commands | Override the target ApiVault project |
 | `APIVAULT_PROJECT` | all commands | Same value as `-p`, from the environment |
 | `NO_COLOR` | UI | Disable terminal colors |
@@ -108,7 +108,7 @@ Installs standalone Node runtime bundle into `~/.local/share/apivault` and links
 2. Browser opens to connect page (`/cli/connect?rid=<requestId>`)
 3. User approves or refuses
 4. CLI polls `POST /api/cli/status { requestToken }`
-5. On approval → `{ apiToken, expiresAt, user }` saved to `token.json`
+5. On approval → `{ apiToken, expiresAt, user }` saved in the OS credential store
 
 Minted tokens expire 90 days after approval. `apivault login` prints the expiry date,
 `apivault whoami` shows it (warning under 14 days), and `apivault --json whoami` returns it as
